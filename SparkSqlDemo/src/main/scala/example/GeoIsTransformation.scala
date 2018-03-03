@@ -19,11 +19,12 @@ object GeoIsTransformation extends App {
  .config(conf)
  .getOrCreate()
  
- var expGeoColumns = spark.sparkContext.textFile("C:\\Users\\Admin\\git\\SivaCTS\\SparkSqlDemo\\exp_geo_is_cg_columns.txt" )
+ var expGeoColumns = spark.sqlContext.read.textFile("C:\\Users\\Admin\\git\\SivaCTS\\SparkSqlDemo\\exp_geo_is_cg_columns.txt" )
  
  
  
- var expGeoColumnsStructFields = expGeoColumns.map(field => StructField(field.split(":")(0),field.split(":")(1) match {
+ 
+ var expGeoColumnsStructFields = expGeoColumns.rdd.map(field => field.split(":")).filter(f => f.length>1).map( split => StructField(split(0),split(1) match {
    case "String" => StringType 
    case "Int" => IntegerType 
    case "Double" => DoubleType 
@@ -31,24 +32,11 @@ object GeoIsTransformation extends App {
  }
  ))
  
- print(expGeoColumnsStructFields)
- 
+  expGeoColumnsStructFields.foreach(f => println(f.dataType))
  
  import spark.implicits._
   
  
   
-   /*Seq(Person("Andy",32)).toDF().write.mode("append").format("jdbc").
-   option("url", "jdbc:mysql://localhost/test").
- option("driver", "com.mysql.jdbc.Driver").
- option("dbtable", "test.person").option("user", "root").
- option("password", "password").save()*/
-  
-// Encoders are created for case classes
- /*val caseClassDS = Seq(Person("Andy", 32)).toDS()
-  caseClassDS.show()
- 
-   var sourceDf = spark.table("exp_geo_is_cg").as(Person)
-   */
  }
 
