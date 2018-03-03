@@ -5,11 +5,13 @@ import org.apache.spark.SparkContext
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.Row
 
 
 
 
-object GeoIsTransformation extends Greeting with App {
+object GeoIsTransformation extends App {
   
   val conf = new SparkConf().setAppName("test").setMaster("local")
   
@@ -17,16 +19,22 @@ object GeoIsTransformation extends Greeting with App {
  .config(conf)
  .getOrCreate()
  
- val dataframe_mysql = spark.sqlContext.read.format("jdbc").
- option("url", "jdbc:mysql://localhost/test").
- option("driver", "com.mysql.jdbc.Driver").
- option("dbtable", "test.person").option("user", "root").
- option("password", "password").load()
+ var expGeoColumns = spark.sparkContext.textFile("C:\\Users\\Admin\\git\\SivaCTS\\SparkSqlDemo\\exp_geo_is_cg_columns.txt" )
+ 
+ 
+ 
+ var expGeoColumnsStructFields = expGeoColumns.map(field => StructField(field.split(":")(0),field.split(":")(1) match {
+   case "String" => StringType 
+   case "Int" => IntegerType 
+   case "Double" => DoubleType 
+   case _ => StringType 
+ }
+ ))
+ 
+ print(expGeoColumnsStructFields)
  
  
  import spark.implicits._
- println(dataframe_mysql.sqlContext.tableNames())
- var ds = dataframe_mysql.as[Person] 
   
  
   
