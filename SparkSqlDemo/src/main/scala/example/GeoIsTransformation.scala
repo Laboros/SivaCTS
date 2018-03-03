@@ -19,12 +19,12 @@ object GeoIsTransformation extends App {
  .config(conf)
  .getOrCreate()
  
- var expGeoColumns = spark.sqlContext.read.textFile("C:\\Users\\Admin\\git\\SivaCTS\\SparkSqlDemo\\exp_geo_is_cg_columns.txt" )
  
  
  
+ var expGeoCgColumns = spark.sqlContext.read.textFile("C:\\Users\\Admin\\git\\SivaCTS\\SparkSqlDemo\\exp_geo_is_cg_columns.txt" )
  
- var expGeoColumnsStructFields = expGeoColumns.rdd.map(field => field.split(":")).filter(f => f.length>1).map( split => StructField(split(0),split(1) match {
+  var expGeoCgColumnsStructFields = expGeoCgColumns.rdd.map(field => field.split(":")).filter(f => f.length>1).map( split => StructField(split(0),split(1) match {
    case "String" => StringType 
    case "Int" => IntegerType 
    case "Double" => DoubleType 
@@ -32,9 +32,25 @@ object GeoIsTransformation extends App {
  }
  ))
  
-  expGeoColumnsStructFields.foreach(f => println(f.dataType))
+  spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(expGeoCgColumnsStructFields.collect.toList)).createOrReplaceTempView("exp_geo_is_cg")
  
- import spark.implicits._
+ 
+ var expGeoColumns = spark.sqlContext.read.textFile("C:\\Users\\Admin\\git\\SivaCTS\\SparkSqlDemo\\exp_geo_is_columns.txt" )
+ 
+  var expGeoColumnsStructFields = expGeoColumns.rdd.map(field => field.split(":")).filter(f => f.length>1).map( split => StructField(split(0),split(1) match {
+   case "String" => StringType 
+   case "Int" => IntegerType 
+   case "Double" => DoubleType 
+   case _ => StringType 
+ }
+ ))
+  spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(expGeoColumnsStructFields.collect.toList)).createOrReplaceTempView("exp_geo_is")
+ 
+  spark.sqlContext.sql(" select * from exp_geo_is" ).show()
+  
+   spark.sqlContext.sql(" select * from exp_geo_is_cg" ).show()
+  
+  import spark.implicits._
   
  
   
