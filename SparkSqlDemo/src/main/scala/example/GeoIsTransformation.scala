@@ -31,7 +31,7 @@ object GeoIsTransformation extends App {
    case _ => StringType 
  }
  ))
- 
+  
   spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(expGeoCgColumnsStructFields.collect.toList)).createOrReplaceTempView("exp_geo_is_cg")
  
  
@@ -59,9 +59,22 @@ object GeoIsTransformation extends App {
    
    
    println(" inserting ")
-   spark.createDataFrame(dfExpGeoIs.rdd.map(row => row ),spark.sqlContext.table("exp_geo_is_cg").schema).
-   write.mode("overwrite").saveAsTable("exp_geo_is_cg")
+   var destDf = spark.createDataFrame(dfExpGeoIs.rdd,spark.sqlContext.table("exp_geo_is_cg").schema)
+   import org.apache.spark.sql.functions._
    
-  
+   destDf.
+   withColumn("hh_size", 
+       when( col("cv_no_pers_unit")=== "1" , "1 Person").
+       when( col("cv_no_pers_unit")=== "2" , "2 Persons").
+       when( col("cv_no_pers_unit")=== "3" , "3 Persons").
+       when( col("cv_no_pers_unit")=== "4" , "4 Persons").
+       when( col("cv_no_pers_unit")=== "5" , "5 Persons").
+       when( col("cv_no_pers_unit")=== "6" , "6 Persons").
+       when( col("cv_no_pers_unit")=== "7" , "7 Persons").
+       when( col("cv_no_pers_unit")=== "8" , "8+ Persons").
+       otherwise("Unknown"))
+       
+   destDf.
+   write.mode("overwrite").saveAsTable("exp_geo_is_cg")
  }
 
