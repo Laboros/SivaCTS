@@ -46,9 +46,11 @@ object GeoIsTransformation extends App {
  ))
   spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(expGeoColumnsStructFields.collect.toList)).createOrReplaceTempView("exp_geo_is")
  
-  spark.sqlContext.sql(" select * from exp_geo_is" ).show()
+  /*spark.sqlContext.sql(" select * from exp_geo_is" ).show()
   
    spark.sqlContext.sql(" select * from exp_geo_is_cg" ).show()
+   * 
+   */
   
   
    val dfExpGeoIs = spark.sqlContext.table("exp_geo_is")
@@ -56,8 +58,9 @@ object GeoIsTransformation extends App {
    import spark.implicits._
    
    
-
-   spark.createDataFrame(dfExpGeoIs.rdd.map(row => row ),spark.sqlContext.table("exp_geo_is_cg").schema).write.mode("overwrite").save()
+   println(" inserting ")
+   spark.createDataFrame(dfExpGeoIs.rdd.map(row => row ),spark.sqlContext.table("exp_geo_is_cg").schema).
+   write.mode("overwrite").saveAsTable("exp_geo_is_cg")
    
   
  }
