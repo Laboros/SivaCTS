@@ -50,9 +50,15 @@ object GeoIsTransformation extends App {
   
    spark.sqlContext.sql(" select * from exp_geo_is_cg" ).show()
   
-  import spark.implicits._
   
- 
+   val dfExpGeoIs = spark.sqlContext.table("exp_geo_is")
+   
+   import spark.implicits._
+   
+   
+
+   spark.createDataFrame(dfExpGeoIs.rdd.map(row => row ),spark.sqlContext.table("exp_geo_is_cg").schema).write.mode("overwrite").save()
+   
   
  }
 
