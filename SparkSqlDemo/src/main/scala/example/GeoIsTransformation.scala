@@ -96,9 +96,9 @@ object GeoIsTransformation extends App {
        .otherwise("Unknown")
      }
      
-     val applyChildPresTypes = ( anyColumn : Column,cvChildPres0_18 :Column) => anyColumn.and(cvChildPres0_18.isin(List("00","0U","5N","5U"))) 
+     val applyChildPresTypes = ( anyColumn : Column,cvChildPres0_18 :Column) => anyColumn.and(cvChildPres0_18.isin("00","0U","5N","5U")) 
      
-     val applyChildAgeChecks = ( col : Column ) => col.isin(List("1Y","5Y"))
+     val applyChildAgeChecks = ( col : Column ) => col.isin("1Y","5Y")
        
        
      
@@ -116,10 +116,10 @@ object GeoIsTransformation extends App {
 
     val determineHHEthnicity = (cvP2EtncGrp : Column, cvP1EtncGrp : Column) => {
      val ethnicity = identifyEthnicity(cvP2EtncGrp,cvP1EtncGrp)
-     when(ethnicity.isin(List('E','G','J','K','L')),"White, Non-Hisp").
-     when(ethnicity.isin(List('A')),"African American, Non-Hisp").
-     when(ethnicity.isin(List('B','C','D','H','N')),"Asian, Non-Hisp").
-     when(ethnicity.isin(List('O')),"Hispanic").
+     when(ethnicity.isin("E","G","J","K","L"),"White, Non-Hisp").
+     when(ethnicity.isin("A"),"African American, Non-Hisp").
+     when(ethnicity.isin("B","C","D","H","N"),"Asian, Non-Hisp").
+     when(ethnicity.isin("O"),"Hispanic").
      otherwise("Other/Unknown, Non-Hisp")
    }
     
@@ -171,7 +171,7 @@ object GeoIsTransformation extends App {
    .withColumn("hoh_age", deriveHHAge(destDf("cv_p2_com_age"),destDf("cv_p1_com_age")))
    .withColumn("hoh_lifestage", deriveHHLifeStage(destDf("cv_p2_com_age"),destDf("cv_p1_com_age"),destDf("cv_child_pres_0_18")))
    .withColumn("hoh_ethnicity", determineHHEthnicity(destDf("cv_p2_etnc_grp"),destDf("cv_p1_etnc_grp")))
-   .withColumn("hoh_hispanic", identifyEthnicity(destDf("cv_p2_etnc_grp"),destDf("cv_p1_etnc_grp")).isin(List('O')))
+   .withColumn("hoh_hispanic", identifyEthnicity(destDf("cv_p2_etnc_grp"),destDf("cv_p1_etnc_grp")).isin("O"))
    .withColumn("hh_income", determineHHIncome(destDf("cv_est_inc_amtv5")))
    .withColumn("hh_per_cap_income", determineHHPerCapitaIncome(destDf("cv_est_inc_amtv5"),destDf("cv_no_pers_unit")))
    .withColumn("hh_presence_of_child", when(applyChildAgeChecks(destDf("cv_child_pres_0_18")).and(destDf("cv_no_child_unit").cast(IntegerType).>=(1)),"Yes").otherwise("No"))
