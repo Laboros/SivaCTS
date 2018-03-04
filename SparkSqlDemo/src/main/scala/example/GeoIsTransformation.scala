@@ -5,8 +5,10 @@ import org.apache.spark.SparkContext
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.Column
 
 
 
@@ -62,18 +64,135 @@ object GeoIsTransformation extends App {
    var destDf = spark.createDataFrame(dfExpGeoIs.rdd,spark.sqlContext.table("exp_geo_is_cg").schema)
    import org.apache.spark.sql.functions._
    
-   destDf.
-   withColumn("hh_size", 
-       when( col("cv_no_pers_unit")=== "1" , "1 Person").
-       when( col("cv_no_pers_unit")=== "2" , "2 Persons").
-       when( col("cv_no_pers_unit")=== "3" , "3 Persons").
-       when( col("cv_no_pers_unit")=== "4" , "4 Persons").
-       when( col("cv_no_pers_unit")=== "5" , "5 Persons").
-       when( col("cv_no_pers_unit")=== "6" , "6 Persons").
-       when( col("cv_no_pers_unit")=== "7" , "7 Persons").
-       when( col("cv_no_pers_unit")=== "8" , "8+ Persons").
-       otherwise("Unknown"))
+   val deriveHHSize = ( cvNoPersUnit : Column) => when( cvNoPersUnit=== "1" , "1 Person").
+       when( cvNoPersUnit=== "2" , "2 Persons").
+       when( cvNoPersUnit=== "3" , "3 Persons").
+       when( cvNoPersUnit=== "4" , "4 Persons").
+       when( cvNoPersUnit=== "5" , "5 Persons").
+       when( cvNoPersUnit=== "6" , "6 Persons").
+       when( cvNoPersUnit=== "7" , "7 Persons").
+       when( cvNoPersUnit=== "8" , "8+ Persons").
+       otherwise("Unknown")
        
+   
+   val getHHPrimePersonExpression = "cv_p2_ptyp='P' and cv_p2_gender='F'"
+   
+   val determineAge = (p2Age : Column, p1Age : Column) => when(expr(getHHPrimePersonExpression)===true,substring(p2Age,2,2)).otherwise(substring(p1Age,2,2)).cast(IntegerType)
+
+   val identifyEthnicity = (p2EtncGrp : Column, p1EtncGrp : Column) => when(expr(getHHPrimePersonExpression)===true,p2EtncGrp).otherwise(p1EtncGrp)
+
+  
+
+   
+   val deriveHHAge = ( p2Age : Column, p1Age : Column) => 
+     {
+       var exprColumn = determineAge(p2Age,p1Age)
+       when(exprColumn.between(19, 30),"01 Millennial (Age 19-39)").
+       when(exprColumn.between(40, 50),"02 Gen X (Age 40-50)").
+       when(exprColumn.between(51, 60),"03 Young Boomer (Age 51-60)").
+       when(exprColumn.between(61, 70),"04 Older Boomer (61-70)").
+       when(exprColumn.between(71, 80),"05 Retirees (Age 71-80)").
+       when(exprColumn>81,"06 Seniors (Age 81+)")
+       .otherwise("Unknown")
+     }
+     
+     val applyChildPresTypes = ( anyColumn : Column,cvChildPres0_18 :Column) => anyColumn.and(cvChildPres0_18.isin(List("00","0U","5N","5U"))) 
+     
+     val applyChildAgeChecks = ( col : Column ) => col.isin(List("1Y","5Y"))
+       
+       
+     
+     val deriveHHLifeStage = ( cvP2ComAge : Column, cvP1ComAge : Column,cvChildPres0_18 :Column) => 
+     {
+       var exprColumn = determineAge(cvP2ComAge,cvP1ComAge)
+       when(applyChildPresTypes(exprColumn.<=(45),cvChildPres0_18),"01 Getting Started").
+       when(applyChildPresTypes(exprColumn.between(46,70),cvChildPres0_18),"04 Established Workers").
+       when(applyChildPresTypes(exprColumn.>=(71),cvChildPres0_18),"05 Retired").
+       when( applyChildAgeChecks(destDf("cv_child_age_0_3_mdl")).or(applyChildAgeChecks(destDf("cv_child_age_4_6_mdl"))).
+           or(applyChildAgeChecks(destDf("cv_child_age_7_9_mdl"))).or(applyChildAgeChecks(destDf("cv_child_age_10_12_mdl"))),"02 Younger Families").
+       when( applyChildAgeChecks(destDf("cv_child_age_13_15_mdl")).or(applyChildAgeChecks(destDf("cv_child_age_13_15_mdl"))),"03 Raising Teens")
+       .otherwise("Unknown")
+     }
+
+    val determineHHEthnicity = (cvP2EtncGrp : Column, cvP1EtncGrp : Column) => {
+     val ethnicity = identifyEthnicity(cvP2EtncGrp,cvP1EtncGrp)
+     when(ethnicity.isin(List('E','G','J','K','L')),"White, Non-Hisp").
+     when(ethnicity.isin(List('A')),"African American, Non-Hisp").
+     when(ethnicity.isin(List('B','C','D','H','N')),"Asian, Non-Hisp").
+     when(ethnicity.isin(List('O')),"Hispanic").
+     otherwise("Other/Unknown, Non-Hisp")
+   }
+    
+    val determineHHIncome = (amount : Column) => {
+      val intAmount = amount.cast(DoubleType)
+     when(intAmount.between(1,15),"$0-$14.9999K").
+     when(intAmount.between(15,24.9999),"$15K-$24.9999K").
+     when(intAmount.between(25,34.9999),"$25K-$34.9999K").
+     when(intAmount.between(35,49.9999),"$35K-$49.9999K").
+     when(intAmount.between(50,69.9999),"$50K-$69.9999K").
+     when(intAmount.between(70,99.9999),"$70K-$99.9999K").
+     when(intAmount.>=(100),"$100K+").
+     otherwise("Unknown")  
+   }
+    
+    val determineHighLowMediumPCI = ( amount : Column , low : Int, high : Int) => when(amount.<(low),"Low").when(amount>(high),"High").otherwise("Medium")
+    
+     val determineHHPerCapitaIncome = (amount : Column , numberOfPersons : Column) => {
+      val intAmount = amount.cast(IntegerType)
+     when(numberOfPersons==="1",determineHighLowMediumPCI(intAmount,25,50)).
+     when(numberOfPersons==="2",determineHighLowMediumPCI(intAmount,35,60)).
+     when(numberOfPersons==="3",determineHighLowMediumPCI(intAmount,45,70)).
+     when(numberOfPersons==="4",determineHighLowMediumPCI(intAmount,55,80)).
+     when(numberOfPersons==="5",determineHighLowMediumPCI(intAmount,65,90)).
+     when(numberOfPersons==="6",determineHighLowMediumPCI(intAmount,75,100)).
+     when(numberOfPersons==="7",determineHighLowMediumPCI(intAmount,85,110)).
+     when(numberOfPersons==="8",determineHighLowMediumPCI(intAmount,95,120)).
+     otherwise("Unknown")  
+   }
+    
+   val determineAgeOfOldChild = () => {
+      when(
+       applyChildAgeChecks(destDf("cv_child_age_13_15_mdl")).
+       or(applyChildAgeChecks(destDf("cv_child_age_16_18_mdl"))).
+       and(destDf("cv_no_child_unit").cast(IntegerType).>=(1)),"Oldest Child 13-18").
+       when(
+       applyChildAgeChecks(destDf("cv_child_age_7_9_mdl")).
+       or(applyChildAgeChecks(destDf("cv_child_age_10_12_mdl"))).
+       and(destDf("cv_no_child_unit").cast(IntegerType).>=(1)),"Oldest Child 7-12") 
+       when(
+       applyChildAgeChecks(destDf("cv_child_age_0_3_mdl")).
+       or(applyChildAgeChecks(destDf("cv_child_age_4_6_mdl"))).
+       and(destDf("cv_no_child_unit").cast(IntegerType).>=(1)),"Oldest Child 0-6")
+       .otherwise("No Children")
+   }  
+     
+   destDf.
+   withColumn("hh_size", deriveHHSize(destDf("cv_no_pers_unit"))) 
+   .withColumn("hoh_age", deriveHHAge(destDf("cv_p2_com_age"),destDf("cv_p1_com_age")))
+   .withColumn("hoh_lifestage", deriveHHLifeStage(destDf("cv_p2_com_age"),destDf("cv_p1_com_age"),destDf("cv_child_pres_0_18")))
+   .withColumn("hoh_ethnicity", determineHHEthnicity(destDf("cv_p2_etnc_grp"),destDf("cv_p1_etnc_grp")))
+   .withColumn("hoh_hispanic", identifyEthnicity(destDf("cv_p2_etnc_grp"),destDf("cv_p1_etnc_grp")).isin(List('O')))
+   .withColumn("hh_income", determineHHIncome(destDf("cv_est_inc_amtv5")))
+   .withColumn("hh_per_cap_income", determineHHPerCapitaIncome(destDf("cv_est_inc_amtv5"),destDf("cv_no_pers_unit")))
+   .withColumn("hh_presence_of_child", when(applyChildAgeChecks(destDf("cv_child_pres_0_18")).and(destDf("cv_no_child_unit").cast(IntegerType).>=(1)),"Yes").otherwise("No"))
+   //To Verify
+   .withColumn("hh_presence_of_child_age_0_6", when(
+       applyChildAgeChecks(destDf("cv_child_age_0_3_mdl")).
+       or(applyChildAgeChecks(destDf("cv_child_age_4_6_mdl"))).
+       and(destDf("cv_no_child_unit").cast(IntegerType).>=(1)),"Yes").otherwise("No"))
+       
+   .withColumn("hh_presence_of_child_age_7_12", when(
+       applyChildAgeChecks(destDf("cv_child_age_7_9_mdl")).
+       or(applyChildAgeChecks(destDf("cv_child_age_10_12_mdl"))).
+       and(destDf("cv_no_child_unit").cast(IntegerType).>=(1)),"Yes").otherwise("No"))
+       
+   .withColumn("hh_presence_of_child_age_13_18", when(
+       applyChildAgeChecks(destDf("cv_child_age_13_15_mdl")).
+       or(applyChildAgeChecks(destDf("cv_child_age_16_18_mdl"))).
+       and(destDf("cv_no_child_unit").cast(IntegerType).>=(1)),"Yes").otherwise("No"))
+       
+   .withColumn("hh_age_of_old_child", determineAgeOfOldChild())
+      
    destDf.
    write.mode("overwrite").saveAsTable("exp_geo_is_cg")
  }
