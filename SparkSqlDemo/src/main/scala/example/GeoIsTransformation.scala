@@ -13,18 +13,24 @@ import org.apache.spark.sql.Column
 
 
 
+
+
 object GeoIsTransformation extends App {
   
-  val conf = new SparkConf().setAppName("test").setMaster("local")
-  
+  val conf = new SparkConf().setAppName("test")
+
+  val hivedwh = "adl://home/hive/warehouse/"
   val spark: SparkSession = SparkSession.builder
  .config(conf)
- .getOrCreate()
+   .enableHiveSupport()
+    .config("spark.sql.warehouse.dir", hivedwh)
+    .getOrCreate()
+
  
  
+ import spark.implicits._
  
- 
- var expGeoCgColumns = spark.sqlContext.read.textFile("C:\\Users\\Admin\\git\\SivaCTS\\SparkSqlDemo\\exp_geo_is_cg_columns.txt" )
+ var expGeoCgColumns = spark.sqlContext.read.textFile("adl://devitlake.azuredatalakestore.net/clusters/devithadoop/data/mvh/spark_poc/sparkcg_test/exp_geo_is_cg_columns.txt" )
  
   var expGeoCgColumnsStructFields = expGeoCgColumns.rdd.map(field => field.split(":")).filter(f => f.length>1).map( split => StructField(split(0),split(1) match {
    case "String" => StringType 
@@ -33,11 +39,12 @@ object GeoIsTransformation extends App {
    case _ => StringType 
  }
  ))
-  
+  //spark.read.format("ORC").load("adl://devitlake.azuredatalakestore.net/clusters/devithadoop/data/mvh/spark_poc/exp_geo_is/000000_0")
+
   spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(expGeoCgColumnsStructFields.collect.toList)).createOrReplaceTempView("exp_geo_is_cg")
  
  
- var expGeoColumns = spark.sqlContext.read.textFile("C:\\Users\\Admin\\git\\SivaCTS\\SparkSqlDemo\\exp_geo_is_columns.txt" )
+ var expGeoColumns = spark.sqlContext.read.textFile("adl://devitlake.azuredatalakestore.net/clusters/devithadoop/data/mvh/spark_poc/sparkcg_test/exp_geo_is_columns.txt" )
  
   var expGeoColumnsStructFields = expGeoColumns.rdd.map(field => field.split(":")).filter(f => f.length>1).map( split => StructField(split(0),split(1) match {
    case "String" => StringType 
@@ -46,7 +53,8 @@ object GeoIsTransformation extends App {
    case _ => StringType 
  }
  ))
-  spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(expGeoColumnsStructFields.collect.toList)).createOrReplaceTempView("exp_geo_is")
+  val data = spark.read.format("ORC").load("adl://devitlake.azuredatalakestore.net/clusters/devithadoop/data/mvh/spark_poc/exp_geo_is/000000_0").rdd
+  spark.createDataFrame(data, StructType(expGeoColumnsStructFields.collect.toList)).createOrReplaceTempView("exp_geo_is")
  
   /*spark.sqlContext.sql(" select * from exp_geo_is" ).show()
   
@@ -192,7 +200,7 @@ object GeoIsTransformation extends App {
    }  
      
    destDf.
-   withColumn("hh_size", deriveHHSize(destDf("cv_no_pers_unit"))) 
+   withColumn("hh_size", deriveHHSize(destDf("cv_no_pers_unit")) )
    .withColumn("hoh_age", deriveHHAge(destDf("cv_p2_com_age"),destDf("cv_p1_com_age")))
    .withColumn("hoh_lifestage", deriveHHLifeStage(destDf("cv_p2_com_age"),destDf("cv_p1_com_age"),destDf("cv_child_pres_0_18")))
    .withColumn("hoh_ethnicity", determineHHEthnicity(destDf("cv_p2_etnc_grp"),destDf("cv_p1_etnc_grp")))
@@ -239,6 +247,6 @@ object GeoIsTransformation extends App {
    .withColumn("HH_County", concat(destDf("cv_county_cd"),lit("-"),destDf("cv_county_name")))
    
    destDf.
-   write.mode("overwrite").saveAsTable("exp_geo_is_cg")
+   write.mode("overwrite").saveAsTable("exp_geo_is_cg_scala")
  }
 
